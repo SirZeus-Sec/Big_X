@@ -37,21 +37,28 @@ jobs:
         run: |
           pip install --upgrade trufflehog
 
-      - name: Run TruffleHog on Changed Files
+      - name: Run TruffleHog on Repository and Filter Changed Files
         run: |
           if [[ -z "$FILES" ]]; then
             echo "✅ No changed files to scan."
             exit 0
           fi
 
-          echo "🔍 Scanning changed files: $FILES"
+          echo "🔍 Running TruffleHog on the repository..."
+          trufflehog filesystem --json . | tee trufflehog_results.json
+
+          echo "🔎 Filtering results for changed files..."
           FOUND=false
           for file in $FILES; do
-            echo "Scanning $file..."
-            trufflehog filesystem "$file" || FOUND=true
+            if grep -q "$file" trufflehog_results.json; then
+              echo "❌ Secret detected in $file!"
+              FOUND=true
+            fi
           done
 
           if [[ "$FOUND" == "true" ]]; then
             echo "❌ Secrets detected! Failing the job."
             exit 1
+          else
+            echo "✅ No secrets found in changed files."
           fi
